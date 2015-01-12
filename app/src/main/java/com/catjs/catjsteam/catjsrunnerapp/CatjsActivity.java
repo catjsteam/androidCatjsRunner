@@ -21,7 +21,6 @@ import android.webkit.WebViewClient;
 
 import org.apache.http.HttpResponse;
 import org.apache.http.NameValuePair;
-import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.mime.MultipartEntityBuilder;
@@ -38,13 +37,15 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Timer;
+import java.util.TimerTask;
 
 
 public class CatjsActivity extends Activity {
 
     private WebView catWebView;
-//    private String webSiteAdd;
-    private String webSiteAdd = "http://192.168.0.102:8089";
+    private String webSiteAdd;
+//    private String webSiteAdd = "http://192.168.0.102:8089";
 
     private DeviceInfo deviceInfo = new DeviceInfo();
     private Screenshot screenshot;
@@ -75,8 +76,8 @@ public class CatjsActivity extends Activity {
         // set web client
         webClientManager();
 
-//        loadCatjsUrl();
-        loadCatjsUrlSimple();
+        loadCatjsUrl();
+//        loadCatjsUrlSimple();
 
     }
 
@@ -204,69 +205,87 @@ public class CatjsActivity extends Activity {
         public static final int SOFTIRQ = 8;
         public static final int APP_CPU = 13;
         public static final int APP_IDLE = 14;
+        public String serverAddress;
+        public Map<String, String> params;
+
+
+        class MyTimerTask extends TimerTask {
+            public void run() {
+                Log.i("CatjsActivity", "Timer task executed.");
+                float cpuUsage = readUsage();
+
+                long totalCpu = getTotalCpu();
+
+                double[] memoryParams = memoryManager();
+                buildApi();
+                getBatteryPercentage();
+
+                String availableInternalMemorySize = getAvailableInternalMemorySize();
+                String totalInternalMemorySize = getTotalInternalMemorySize();
+                String availableExternalMemorySize = getAvailableExternalMemorySize();
+                String totalExternalMemorySize = getTotalExternalMemorySize();
+
+                String result = "";
+                try {
+
+                    DefaultHttpClient httpClient = new DefaultHttpClient();
+                    HttpPost postRequest = new HttpPost(serverAddress + "/deviceinfo");
+                    postRequest.addHeader("accept", "application/json");
+
+
+                    MultipartEntityBuilder multiPartEntityBuilder = MultipartEntityBuilder
+                            .create();
+
+
+                    postRequest.setEntity(multiPartEntityBuilder.build());
+
+                    List<NameValuePair> pairs = new ArrayList<NameValuePair>();
+                    pairs.add(new BasicNameValuePair("scrapName", params.get("scrapName")));
+                    pairs.add(new BasicNameValuePair("deviceId", params.get("deviceId")));
+                    pairs.add(new BasicNameValuePair("deviceName", "deviceName"));
+                    pairs.add(new BasicNameValuePair("deviceType", "android"));
+                    pairs.add(new BasicNameValuePair("availableInternalMemorySize", availableInternalMemorySize));
+                    pairs.add(new BasicNameValuePair("totalInternalMemorySize", totalInternalMemorySize));
+                    pairs.add(new BasicNameValuePair("availableExternalMemorySize", availableExternalMemorySize));
+                    pairs.add(new BasicNameValuePair("totalExternalMemorySize", totalExternalMemorySize));
+                    pairs.add(new BasicNameValuePair("totalCpu", String.valueOf(totalCpu)));
+                    pairs.add(new BasicNameValuePair("cpuUsage", String.valueOf(cpuUsage)));
+                    pairs.add(new BasicNameValuePair("totalMem", String.valueOf(memoryParams[0])));
+                    pairs.add(new BasicNameValuePair("availableMegs", String.valueOf(memoryParams[1])));
+                    pairs.add(new BasicNameValuePair("percentAvail", String.valueOf(memoryParams[2])));
+
+
+                    postRequest.setEntity(new UrlEncodedFormEntity(pairs));
+
+                    HttpResponse response = httpClient.execute(postRequest);
+//                result = getResult(response).toString();
+                    httpClient.getConnectionManager().shutdown();
+
+
+                } catch (UnsupportedEncodingException e) {
+                    Log.i("CatjsActivity", "UnsupportedEncodingException");
+                    e.printStackTrace();
+//                } catch (ClientProtocolException e){
+//                    Log.i("CatjsActivity", "ClientProtocolException");
+//                    e.printStackTrace();
+                } catch (IOException e) {
+                    Log.i("CatjsActivity", "IOException");
+                    e.printStackTrace();
+                }
+
+
+                Log.i("CatjsActivity", "End interval");
+
+            }
+        }
 
         public void getDeviceInfo(String serverAddress, Map<String, String> params) {
-            float cpuUsage = readUsage();
+            this.serverAddress = serverAddress;
+            this.params = params;
+            TimerTask tasknew = new MyTimerTask();
+            Timer timer = new Timer();
 
-            long totalCpu = getTotalCpu();
-
-            double[] memoryParams = memoryManager();
-            buildApi();
-            getBatteryPercentage();
-
-            String availableInternalMemorySize = getAvailableInternalMemorySize();
-            String totalInternalMemorySize = getTotalInternalMemorySize();
-            String availableExternalMemorySize = getAvailableExternalMemorySize();
-            String totalExternalMemorySize = getTotalExternalMemorySize();
-
-            String result = "";
-            try {
-
-                DefaultHttpClient httpClient = new DefaultHttpClient();
-                HttpPost postRequest = new HttpPost(serverAddress + "/deviceinfo");
-                postRequest.addHeader("accept", "application/json");
-
-
-                MultipartEntityBuilder multiPartEntityBuilder = MultipartEntityBuilder
-                        .create();
-
-
-                postRequest.setEntity(multiPartEntityBuilder.build());
-
-                List<NameValuePair> pairs = new ArrayList<NameValuePair>();
-                pairs.add(new BasicNameValuePair("scrapName", params.get("scrapName")));
-                pairs.add(new BasicNameValuePair("deviceId", params.get("deviceId")));
-                pairs.add(new BasicNameValuePair("deviceName", "deviceName"));
-                pairs.add(new BasicNameValuePair("deviceType", "android"));
-                pairs.add(new BasicNameValuePair("availableInternalMemorySize", availableInternalMemorySize));
-                pairs.add(new BasicNameValuePair("totalInternalMemorySize", totalInternalMemorySize));
-                pairs.add(new BasicNameValuePair("availableExternalMemorySize", availableExternalMemorySize));
-                pairs.add(new BasicNameValuePair("totalExternalMemorySize", totalExternalMemorySize));
-                pairs.add(new BasicNameValuePair("totalCpu", String.valueOf(totalCpu)));
-                pairs.add(new BasicNameValuePair("cpuUsage", String.valueOf(cpuUsage)));
-                pairs.add(new BasicNameValuePair("totalMem", String.valueOf(memoryParams[0])));
-                pairs.add(new BasicNameValuePair("availableMegs", String.valueOf(memoryParams[1])));
-                pairs.add(new BasicNameValuePair("percentAvail", String.valueOf(memoryParams[2])));
-
-
-                postRequest.setEntity(new UrlEncodedFormEntity(pairs));
-
-                HttpResponse response = httpClient.execute(postRequest);
-//                result = getResult(response).toString();
-                httpClient.getConnectionManager().shutdown();
-
-
-            } catch (UnsupportedEncodingException e) {
-                Log.i("CatjsActivity", "UnsupportedEncodingException");
-                e.printStackTrace();
-            } catch (ClientProtocolException e){
-                Log.i("CatjsActivity", "ClientProtocolException");
-                e.printStackTrace();
-            } catch (IOException e) {
-                Log.i("CatjsActivity", "IOException");
-                e.printStackTrace();
-            }
-
+            timer.scheduleAtFixedRate(tasknew,500,1000);
 
 
             return;
